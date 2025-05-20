@@ -1,0 +1,18 @@
+[
+  {
+    "face": 1000.0,
+    "issue_date": "2020-01-01",
+    "maturity_date": "2023-01-01",
+    "coupon_rate": 0.05,
+    "frequency": 2,
+    "clean_price": 980.0
+  },
+  {
+    "face": 1000.0,
+    "issue_date": "2020-01-01",
+    "maturity_date": "2025-01-01",
+    "coupon_rate": 0.06,
+    "frequency": 2,
+    "clean_price": 1020.0
+  }
+]
