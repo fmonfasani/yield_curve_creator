@@ -1,0 +1,16 @@
+version: "3.8"   # puedes borrarlo si quieres
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile    # asume que tu Dockerfile instala celery y corre el worker
+    command: celery -A app.celery_app.celery worker --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0

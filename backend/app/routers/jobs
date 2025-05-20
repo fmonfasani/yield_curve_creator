@@ -1,0 +1,64 @@
+import os
+import json
+import tempfile
+from datetime import datetime, date
+from app.services.parsing import parse_prospect
+from app.services.calculations import (
+    generate_cashflows, calculate_ytm,
+    calculate_duration_convexity, calculate_dv01
+)
+
+BASE_DIR = os.getcwd()
+RESULTS_DIR = os.path.join(BASE_DIR, "data", "results")
+
+
+def process_sync(job_id: str, filename: str):
+    """
+    Parsea el prospecto, calcula métricas del bono y guarda el resultado en JSON de forma atómica.
+    """
+    # 1) Parseo de datos del prospecto
+    prospect_path = os.path.join(BASE_DIR, "data", "prospects", filename)
+    bond_data = parse_prospect(prospect_path)
+
+    # 2) Serializar bond_data: fechas a ISO 8601
+    serializable_bond_data = {}
+    for k, v in bond_data.items():
+        if isinstance(v, (datetime, date)):
+            serializable_bond_data[k] = v.isoformat()
+        else:
+            serializable_bond_data[k] = v
+
+    # 3) Cálculos financieros
+    cf = generate_cashflows(
+        bond_data["face"], bond_data["coupon_rate"],
+        bond_data["frequency"], bond_data["issue_date"],
+        bond_data["maturity_date"]
+    )
+    cashflows = [
+        {"date": d.isoformat() if isinstance(d, (datetime, date)) else str(d), "amount": a}
+        for d, a in cf
+    ]
+    ytm = calculate_ytm(cf, bond_data["clean_price"], bond_data["face"], bond_data["frequency"])
+    macaulay, modified, convexity = calculate_duration_convexity(cf, ytm, bond_data["frequency"])
+    dv01 = calculate_dv01(cf, ytm, bond_data["frequency"], bond_data["clean_price"])
+
+    result = {
+        **serializable_bond_data,
+        "cashflows": cashflows,
+        "ytm": ytm,
+        "duration_macaulay": macaulay,
+        "duration_modified": modified,
+        "convexity": convexity,
+        "dv01": dv01
+    }
+
+    # 4) Guardar el resultado de forma atómica
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    temp_file = tempfile.NamedTemporaryFile(mode='w', dir=RESULTS_DIR, delete=False, suffix='.json.tmp')
+    json.dump(result, temp_file, ensure_ascii=False, indent=2)
+    temp_file.flush()
+    temp_path = temp_file.name
+    temp_file.close()
+
+    final_path = os.path.join(RESULTS_DIR, f"{job_id}.json")
+    os.replace(temp_path, final_path)
